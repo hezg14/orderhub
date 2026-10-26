@@ -1,0 +1,7 @@
+name = "orderhub-keepalive"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Render sleeps after 15 min idle; a 12-minute interval leaves headroom.
+[triggers]
+crons = ["*/12 * * * *"]

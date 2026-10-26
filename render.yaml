@@ -32,7 +32,7 @@ services:
       # Only needed if you later split SPA and API onto different hosts.
       # Same-host requests are trusted automatically (see createApp's CORS block).
       - key: CORS_ORIGIN
-        value: https://orderhub.onrender.com
+        value: https://orderhub-iczq.onrender.com
       # Demo convenience: every restart resets the seed snapshot so a reviewer
       # never lands on an empty or mangled dataset. Turn OFF for real data.
       - key: SEED_ON_BOOT

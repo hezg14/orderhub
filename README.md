@@ -117,6 +117,8 @@ cd frontend && npm run typecheck && npm run build && npm run size   # bundle bud
 
 ## Deploy
 
+**Live demo**: <https://orderhub-iczq.onrender.com> — free instance; the first visit after 15 idle minutes wakes in ~30–60 s, and `SEED_ON_BOOT` restores a clean demo dataset on every restart.
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hezg14/orderhub)
 
 One Render free web service (this repo's Blueprint) + one Neon free Postgres. The Blueprint asks for `DATABASE_URL` and generates `JWT_SECRET`; `SEED_ON_BOOT=true` resets demo data on each deploy/restart. The free tier sleeps after 15 idle minutes — first visit wakes in ~30–60 s.
