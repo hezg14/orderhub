@@ -196,6 +196,7 @@ onMounted(load);
 
     <DataTable
       v-model:page="page"
+      v-model:page-size="meta.pageSize"
       :rows="rows"
       :meta="meta"
       :loading="loading"
