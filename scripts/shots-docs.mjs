@@ -1,6 +1,6 @@
 /**
  * Portfolio screenshots: 1600x1000 PNGs of every page, captured from a running
- * instance. Used by README + the Upwork portfolio entry, so they must match the
+ * instance. Used by README + the portfolio entry, so they must match the
  * real product — no mockups.
  *
  *   BASE_URL=http://localhost:3000 node scripts/shots-docs.mjs [outDir]

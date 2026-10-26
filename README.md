@@ -21,7 +21,7 @@ Vue 3 + TypeScript 前端，Express + Prisma + PostgreSQL 后端，Docker 一键
 | 校验 | **Zod** | 一份 schema 同时产出运行时校验和 TS 类型 | Joi 不带类型推导 |
 | 认证 | **JWT 存 httpOnly Cookie** | 防 XSS 读取；刷新页面保持登录 | localStorage 实现简单，但 token 可被任意脚本读取 |
 
-### Upwork 技能标签 → 本仓库落点
+### 技能标签 → 本仓库落点
 
 | 标签 | 落在哪 | 具体位置 |
 |---|---|---|
@@ -32,7 +32,7 @@ Vue 3 + TypeScript 前端，Express + Prisma + PostgreSQL 后端，Docker 一键
 | API Development | 后端 | REST 契约、统一错误码、分页、幂等建单 |
 | Linux | 部署 | Alpine 镜像、非 root 用户、`HEALTHCHECK`、优雅退出 |
 
-React / Next.js / Golang 不在本项目中，这是刻意的：一个登录后的 CRUD 后台用 Next.js 得不到 SSR 收益，用 Go 反而增加交接成本。这两个标签分别由「公开门户（Next.js）」和「高并发 API（Go）」两件作品承担，见仓库根目录的方案文档。
+React / Next.js / Golang 不在本项目中，这是刻意的：一个登录后的 CRUD 后台用 Next.js 得不到 SSR 收益，用 Go 反而增加交接成本。
 
 ---
 
