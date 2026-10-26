@@ -4,12 +4,18 @@ import { authenticate } from '../middlewares/auth';
 import { requireRole } from '../middlewares/rbac';
 import { validateQuery } from '../middlewares/validate';
 import { reportQuery, type ReportQuery } from '../schemas';
-import { buildReport, csvFilename, toCsv } from '../services/report.service';
+import { buildReport, csvFilename, toCsv, receivablesAging } from '../services/report.service';
 
 export const reportsRouter = Router();
 
 // Reports and exports are owner-only (PRD §4.8).
 reportsRouter.use(authenticate, requireRole('admin'));
+
+/** Accounts-receivable aging: who owes what, bucketed by 30/60/90 days. */
+reportsRouter.get(
+  '/receivables',
+  asyncHandler(async (_req, res) => ok(res, await receivablesAging())),
+);
 
 reportsRouter.get(
   '/preview',

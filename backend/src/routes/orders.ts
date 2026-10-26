@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler, ok, paged, reqLocale } from '../lib/http';
+import { AppError } from '../lib/errors';
+import { prisma } from '../lib/prisma';
 import { authenticate } from '../middlewares/auth';
 import { requireRole } from '../middlewares/rbac';
 import { validateBody, validateQuery } from '../middlewares/validate';
@@ -25,6 +27,24 @@ import type { OrderStatus } from '@prisma/client';
 export const ordersRouter = Router();
 
 ordersRouter.use(authenticate);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The client generates a UUID per logical submission (not per attempt), so a
+ * network retry or a double-click replays the same order instead of creating
+ * a duplicate. Absent header = opt out; malformed header = client bug.
+ */
+function idempotencyKeyOf(req: { get(name: string): string | undefined }): string | undefined {
+  const raw = req.get('idempotency-key');
+  if (raw === undefined || raw === '') return undefined;
+  if (!UUID_RE.test(raw)) {
+    throw new AppError('VALIDATION_ERROR', 'Idempotency-Key must be a UUID', {
+      header: 'Idempotency-Key',
+    });
+  }
+  return raw;
+}
 
 ordersRouter.get(
   '/',
@@ -52,11 +72,19 @@ ordersRouter.post(
   '/',
   validateBody(createOrderSchema),
   asyncHandler(async (req, res) => {
-    const order = await createOrder(
+    // Lazy sweep: keys older than a day can no longer be replayed by any
+    // sane retry, so the table stays bounded without a cron job.
+    void prisma.idempotencyKey
+      .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 24 * 3_600_000) } } })
+      .catch(() => undefined);
+
+    const { order, replay } = await createOrder(
       req.body as CreateOrderInput,
       req.user!.id,
       req.requestId,
+      idempotencyKeyOf(req),
     );
+    if (replay) res.setHeader('Idempotent-Replay', 'true');
     return ok(res, order, 201);
   }),
 );

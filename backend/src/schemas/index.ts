@@ -36,6 +36,13 @@ export const changeRoleSchema = z.object({
 
 /* ---------------------------------------------------------------- customers */
 
+// Open-credit ceiling in CNY. Null clears credit control (cash customer);
+// a number turns enforcement on inside order creation. Only admins may set it.
+export const creditLimitSchema = z
+  .number()
+  .min(0, 'Credit limit cannot be negative')
+  .max(99_999_999, 'Credit limit is unreasonably large');
+
 export const createCustomerSchema = z.object({
   name: z.string().trim().min(1, 'Customer name is required').max(120),
   company: z.string().trim().max(120).optional().or(z.literal('')),
@@ -46,6 +53,12 @@ export const createCustomerSchema = z.object({
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();
+
+/** Same writes plus the financial field — admin-only enforcement in the route. */
+export const createCustomerWriteSchema = createCustomerSchema.extend({
+  creditLimit: creditLimitSchema.nullable().optional(),
+});
+export const updateCustomerWriteSchema = createCustomerWriteSchema.partial();
 
 export const listCustomersQuery = pagination.extend({
   q: z.string().trim().max(120).optional(),

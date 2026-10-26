@@ -36,12 +36,52 @@ export interface Customer {
   createdAt: string;
   orderCount?: number;
   totalSpent?: number;
+  /** Unsettled (pending) order total — echoed by list/detail for credit UI. */
+  receivable?: number;
+  /** Open-credit ceiling; null = cash customer, no credit control. */
+  creditLimit?: number | null;
   lastOrderAt?: string | null;
 }
 
 export interface CustomerDetail extends Customer {
-  stats: { orders: number; revenue: number; avgOrder: number; lastOrderAt: string | null };
+  stats: {
+    orders: number;
+    revenue: number;
+    avgOrder: number;
+    lastOrderAt: string | null;
+    receivable: number;
+    pendingOrders: number;
+    oldestPendingAt: string | null;
+  };
   recentOrders: Order[];
+}
+
+/* ------------------------------------------------------- receivables aging */
+
+export interface ReceivableBucket {
+  key: 'current' | 'd30' | 'd60' | 'd90';
+  total: number;
+  count: number;
+}
+
+export interface ReceivableCustomer {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  company: string | null;
+  companyEn: string | null;
+  receivable: number;
+  orderCount: number;
+  oldestDays: number;
+  creditLimit: number | null;
+  usage: number | null;
+}
+
+export interface ReceivablesReport {
+  buckets: ReceivableBucket[];
+  customers: ReceivableCustomer[];
+  grandTotal: number;
+  totalPending: number;
 }
 
 export interface Product {

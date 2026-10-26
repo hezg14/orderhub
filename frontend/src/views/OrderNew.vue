@@ -5,6 +5,7 @@ import MoneyText from '@/components/MoneyText.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import type { Customer, Product } from '@/types';
 import { useI18n, localCompany, localName } from '@/i18n';
+import { fmtMoney } from '@/utils/format';
 import { Delete, Plus } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
@@ -102,10 +103,14 @@ async function submit() {
     router.replace(`/orders/${order.id}`);
   } catch (err) {
     if (err instanceof ApiError) {
-      serverError.value = err.message;
+      serverError.value = creditMessage(err) ?? err.message;
       // 409 carries per-product availability: refresh stock so the red rows are right.
       if (err.code === 'CONFLICT') {
         products.value = (await productsApi.list({ pageSize: 100 })).data;
+      }
+      // A just-rejected order also means the customer's receivable moved.
+      if (err.code === 'BUSINESS_RULE_VIOLATION') {
+        customers.value = (await customersApi.list({ pageSize: 100 })).data;
       }
     } else {
       serverError.value = t('orderNew.failed');
@@ -113,6 +118,26 @@ async function submit() {
   } finally {
     submitting.value = false;
   }
+}
+
+/** Localized, numbers-and-all rendering of a CREDIT_LIMIT_EXCEEDED rejection. */
+function creditMessage(err: ApiError): string | null {
+  const d = err.details as
+    | {
+        reason?: string;
+        creditLimit?: number;
+        receivable?: number;
+        attemptedTotal?: number;
+        shortfall?: number;
+      }
+    | undefined;
+  if (err.code !== 'BUSINESS_RULE_VIOLATION' || d?.reason !== 'CREDIT_LIMIT_EXCEEDED') return null;
+  return t('orderNew.creditExceeded', {
+    limit: fmtMoney(d.creditLimit ?? 0),
+    receivable: fmtMoney(d.receivable ?? 0),
+    attempted: fmtMoney(d.attemptedTotal ?? 0),
+    shortfall: fmtMoney(d.shortfall ?? 0),
+  });
 }
 
 onMounted(async () => {

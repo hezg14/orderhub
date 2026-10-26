@@ -11,6 +11,7 @@ import type {
   Paged,
   PageMeta,
   Product,
+  ReceivablesReport,
   ReportPreview,
   Role,
   User,
@@ -65,7 +66,14 @@ export const ordersApi = {
     note?: string;
     discount: number;
     items: { productId: string; quantity: number }[];
-  }) => unwrap(http.post<Envelope<Order>>('/orders', body)),
+  }) =>
+    unwrap(
+      http.post<Envelope<Order>>('/orders', body, {
+        // One UUID per API call: a network-level retry replays the same order
+        // instead of double-creating. Double-clicks are guarded in the view.
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      }),
+    ),
   changeStatus: (id: string, status: OrderStatus, reason?: string) =>
     unwrap(http.patch<Envelope<Order>>(`/orders/${id}/status`, { status, reason })),
   remove: (id: string) => unwrap(http.delete<Envelope<{ deleted: boolean }>>(`/orders/${id}`)),
@@ -107,6 +115,7 @@ export type ReportType = 'orders' | 'customers' | 'products';
 export const reportsApi = {
   preview: (params: { type: ReportType; from?: string; to?: string }) =>
     unwrap(http.get<Envelope<ReportPreview>>('/reports/preview', { params })),
+  receivables: () => unwrap(http.get<Envelope<ReceivablesReport>>('/reports/receivables')),
   exportCsv: (params: { type: ReportType; from?: string; to?: string }) =>
     http.download('/reports/export', `${params.type}-${params.from ?? 'from'}_${params.to ?? 'to'}.csv`, params),
 };

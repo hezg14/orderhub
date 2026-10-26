@@ -4,10 +4,11 @@ import MoneyText from '@/components/MoneyText.vue';
 import StatusTag from '@/components/StatusTag.vue';
 import type { CustomerDetail } from '@/types';
 import { useI18n, localCompany, localName } from '@/i18n';
+import { fmtMoney } from '@/utils/format';
 import { MOBILE_QUERY, useMediaQuery } from '@/composables/useMediaQuery';
 import { Plus } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const { t, localeCode } = useI18n();
@@ -22,6 +23,7 @@ async function load() {
   loading.value = true;
   try {
     data.value = await customersApi.get(route.params.id as string);
+    deriveCredit(data.value);
   } catch {
     missing.value = true;
     ElMessage.error(t('customerDetail.loadFailed'));
@@ -40,6 +42,26 @@ function newOrder() {
 }
 
 onMounted(load);
+
+/* Credit usage: null limit = cash customer, the whole card disappears. */
+const credit = ref<{ receivable: number; limit: number; usage: number } | null>(null);
+const creditTone = computed(() => {
+  if (!credit.value) return 'ok';
+  if (credit.value.usage >= 1) return 'over';
+  if (credit.value.usage >= 0.75) return 'warn';
+  return 'ok';
+});
+function deriveCredit(d: CustomerDetail) {
+  if (d.creditLimit == null) {
+    credit.value = null;
+    return;
+  }
+  credit.value = {
+    receivable: d.stats.receivable,
+    limit: d.creditLimit,
+    usage: d.creditLimit === 0 ? 1 : d.stats.receivable / d.creditLimit,
+  };
+}
 </script>
 
 <template>
@@ -84,6 +106,28 @@ onMounted(load);
           <span class="k">{{ t('customerDetail.lastOrder') }}</span>
           <b class="v date">{{ fmt(data.stats.lastOrderAt) }}</b>
         </div>
+      </div>
+
+      <!-- Open credit: receivable vs ceiling. Hidden for cash customers. -->
+      <div v-if="credit" class="card credit" :class="`is-${creditTone}`">
+        <div class="card-head">
+          <h3>{{ t('customerDetail.credit.title') }}</h3>
+          <span v-if="creditTone === 'over'" class="credit-flag">{{ t('customerDetail.credit.over') }}</span>
+          <span v-else-if="creditTone === 'warn'" class="credit-flag">{{ t('customerDetail.credit.warn') }}</span>
+        </div>
+        <div class="credit-row">
+          <div class="credit-bar" role="img" :aria-label="t('customerDetail.credit.aria', { usage: Math.round(credit.usage * 100) })">
+            <i :style="{ width: `${Math.min(100, credit.usage * 100)}%` }" />
+          </div>
+          <span class="credit-nums mono tabular">
+            {{ t('customerDetail.credit.usage', {
+              receivable: fmtMoney(credit.receivable),
+              limit: fmtMoney(credit.limit),
+              pct: Math.round(credit.usage * 100),
+            }) }}
+          </span>
+        </div>
+        <p class="muted credit-hint">{{ t('customerDetail.credit.hint', { pending: data.stats.pendingOrders }) }}</p>
       </div>
 
       <div class="card">
@@ -135,6 +179,72 @@ onMounted(load);
 </template>
 
 <style scoped>
+/* Credit usage bar — the rail mirrors the StatusFlow fill language. */
+.credit {
+  margin-bottom: var(--s-4);
+}
+
+.credit-flag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentcolor;
+}
+
+.is-over .credit-flag {
+  color: var(--danger, #dc2626);
+}
+
+.is-warn .credit-flag {
+  color: var(--warning, #d97706);
+}
+
+.credit-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.credit-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.credit-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.5s var(--ease);
+}
+
+.is-warn .credit-bar i {
+  background: var(--warning, #d97706);
+}
+
+.is-over .credit-bar i {
+  background: var(--danger, #dc2626);
+}
+
+.credit-nums {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.credit-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
 .back {
   display: inline-block;
   font-size: 13px;

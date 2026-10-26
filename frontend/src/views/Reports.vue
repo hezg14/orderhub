@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { reportsApi, type ReportType } from '@/api';
 import { ApiError } from '@/api/client';
-import type { ReportPreview } from '@/types';
+import type { ReceivablesReport, ReportPreview } from '@/types';
 import { useI18n } from '@/i18n';
+import { fmtMoney } from '@/utils/format';
 import { MOBILE_QUERY, useMediaQuery } from '@/composables/useMediaQuery';
 import { Download, Search } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -75,6 +76,30 @@ function isNumeric(value: string | number) {
 }
 
 onMounted(runPreview);
+
+/* ------------------------------------------------- receivables aging card */
+
+const receivables = ref<ReceivablesReport | null>(null);
+const receivablesFailed = ref(false);
+
+/** Segments of the stacked aging bar, widest last for visual stability. */
+const bucketBar = computed(() => {
+  const list = receivables.value?.buckets ?? [];
+  const grand = list.reduce((s, b) => s + b.total, 0);
+  return list.map((b) => ({
+    ...b,
+    pct: grand > 0 ? (b.total / grand) * 100 : 0,
+  }));
+});
+
+onMounted(async () => {
+  try {
+    receivables.value = await reportsApi.receivables();
+  } catch {
+    // The aging card degrades to nothing; the report builder still works.
+    receivablesFailed.value = true;
+  }
+});
 </script>
 
 <template>
@@ -120,6 +145,78 @@ onMounted(runPreview);
           {{ t('common.exportCsv') }}
         </el-button>
       </div>
+    </div>
+
+    <!-- Accounts receivable aging: who owes what, and for how long. -->
+    <div v-if="receivables && receivables.grandTotal > 0" class="card receivables">
+      <div class="card-head">
+        <h3>{{ t('reports.receivables.title') }}</h3>
+        <span class="muted">
+          {{ t('reports.receivables.summary', { total: fmtMoney(receivables.grandTotal), orders: receivables.totalPending }) }}
+        </span>
+      </div>
+
+      <div class="aging-bar" aria-hidden="true">
+        <i
+          v-for="b in bucketBar"
+          :key="b.key"
+          :class="`seg-${b.key}`"
+          :style="{ width: `${b.pct}%` }"
+        />
+      </div>
+      <div class="aging-legend">
+        <span v-for="b in bucketBar" :key="b.key" class="legend-item">
+          <i :class="`dot seg-${b.key}`" />
+          <span>{{ t(`reports.receivables.buckets.${b.key}`) }}</span>
+          <b class="tabular">{{ fmtMoney(b.total) }}</b>
+          <span class="muted tabular">×{{ b.count }}</span>
+        </span>
+      </div>
+
+      <el-table v-if="!isMobile" :data="receivables.customers" style="width: 100%">
+        <el-table-column :label="t('reports.receivables.customer')" min-width="180">
+          <template #default="{ row }">
+            <span>{{ row.nameEn ?? row.name }}</span>
+            <span v-if="row.company || row.companyEn" class="muted cell-sub">
+              {{ row.companyEn ?? row.company }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('reports.receivables.amount')" width="130" align="right">
+          <template #default="{ row }"><span class="tabular">{{ fmtMoney(row.receivable) }}</span></template>
+        </el-table-column>
+        <el-table-column :label="t('reports.receivables.orders')" width="90" align="right">
+          <template #default="{ row }"><span class="tabular">{{ row.orderCount }}</span></template>
+        </el-table-column>
+        <el-table-column :label="t('reports.receivables.oldest')" width="120" align="right">
+          <template #default="{ row }">
+            <span class="tabular" :class="{ over: row.oldestDays > 60 }">
+              {{ t('reports.receivables.days', { n: row.oldestDays }) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('reports.receivables.limit')" min-width="150">
+          <template #default="{ row }">
+            <span v-if="row.creditLimit == null" class="muted">{{ t('reports.receivables.noLimit') }}</span>
+            <span v-else class="tabular">
+              {{ t('reports.receivables.usage', { pct: Math.round((row.usage ?? 0) * 100), limit: fmtMoney(row.creditLimit) }) }}
+            </span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <ul v-else class="rec-list">
+        <li v-for="row in receivables.customers" :key="row.id" class="rec">
+          <div class="rec-head">
+            <span>{{ row.nameEn ?? row.name }}</span>
+            <b class="tabular">{{ fmtMoney(row.receivable) }}</b>
+          </div>
+          <div class="rec-sub muted">
+            {{ t('reports.receivables.days', { n: row.oldestDays }) }} ·
+            {{ row.creditLimit == null ? t('reports.receivables.noLimit') : t('reports.receivables.usage', { pct: Math.round((row.usage ?? 0) * 100), limit: fmtMoney(row.creditLimit) }) }}
+          </div>
+        </li>
+      </ul>
     </div>
 
     <div class="card">
@@ -172,6 +269,91 @@ onMounted(runPreview);
 
 <style scoped>
 /* .head styles come from tokens.css — the shared page-header pattern. */
+
+/* Receivables aging card. */
+.receivables {
+  margin-bottom: var(--s-4);
+}
+
+.aging-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  background: var(--bg-inset);
+}
+
+.aging-bar i {
+  display: block;
+  height: 100%;
+}
+
+.seg-current { background: var(--primary); }
+.seg-d30 { background: #d97706; }
+.seg-d60 { background: #ea580c; }
+.seg-d90 { background: #dc2626; }
+
+.aging-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 12px 0 18px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.legend-item b {
+  font-weight: 600;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.cell-sub {
+  display: block;
+  font-size: 11px;
+}
+
+.tabular.over {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.rec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.rec {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.rec-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.rec-sub {
+  margin-top: 4px;
+  font-size: 11px;
+}
 
 .types {
   display: grid;

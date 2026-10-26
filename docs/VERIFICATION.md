@@ -10,7 +10,7 @@
 |---|---|---|
 | 后端依赖安装 | ✅ | 213 packages |
 | 前端依赖安装 | ✅ | pnpm 安装完成 |
-| `npm test`（后端） | ✅ | vitest 15/15（状态机 9 例 + CSV 6 例） |
+| `npm test`（后端） | ✅ | vitest 19/19（状态机 9 例 + CSV 6 例 + **集成 4 例：并发不超卖 / 幂等重放 / 信用额度拦截**，真实 PG） |
 | `npx tsc --noEmit`（后端） | ✅ | 0 错误 |
 | `vitest run`（前端） | ✅ | **36/36**（`src/__tests__/`：匹配排序 / 状态机几何 / 导航权限 / 格式化 / i18n 键一致性 / 权限矩阵） |
 | `vue-tsc --noEmit`（前端） | ✅ | 0 错误 |
@@ -68,9 +68,17 @@ cd .. && PUPPETEER_MODULE=<puppeteer-core 所在目录> node scripts/audit-ui.mj
 
 ## 5. 仍未覆盖的缺口
 
-- 没有集成测试：`createOrder` 的事务、行锁、单号并发只做了逻辑推演，没有并发用例
+- 集成测试与开发库共用（自建自清），CI 里应换独立 PG service container
 - 没有 E2E：建单 → 改状态 → 导出 CSV 主链路未自动化（audit-ui 只做只读巡检）
 - 限流是进程内 Map（`routes/auth.ts` 已注明），多实例部署需换 Redis
 - 单号按服务器本地日期生成，跨时区需固定业务时区
 - 无软删除，删除后审计里的 `entityId` 指向已不存在的记录
 - CSRF 依赖 SameSite=Lax + 全 JSON API，无 CSRF token（单域部署可接受）
+
+## 6. 业务深度增量（2026-10-26 下午）
+
+- **客户信用额度**：`customers.credit_limit`（null = 现结不管控）；下单事务内锁客户行 + 汇总 pending 应收，超限 422 `CREDIT_LIMIT_EXCEEDED` 带缺口明细；客户详情页额度使用条；改额度仅限 admin（写审计）
+- **应收账龄**：`GET /reports/receivables`（admin），30/60/90 天分桶 + 按客户明细，报表页可视化
+- **幂等建单**：`Idempotency-Key` 头（UUID），key 与订单同事务落库，重放返回原单 + `Idempotent-Replay: true`；24h 惰性清理
+- seed 自动把欠款最多客户的额度钳到 `应收 + ¥500`，演示时下一单必触发拦截
+- 接口实测：额度拦截 422 明细正确；同 key 两次建单返回同一订单 + replay 头；8 并发抢 1 库存恰好 1 单成功

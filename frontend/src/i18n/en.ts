@@ -264,6 +264,7 @@ export default {
     stock: 'Stock',
     overStockSummary: 'Some line quantities exceed current stock — adjust before submitting.',
     tip: 'After submission the order enters “Pending payment” and stock is decremented immediately; cancelling the order returns the stock.',
+    creditExceeded: 'Credit limit exceeded: line {limit}, receivable {receivable}, this order {attempted}, short by {shortfall}. Collect payment or reduce the order.',
   },
 
   orderDetail: {
@@ -373,6 +374,14 @@ export default {
     noCompany: 'Company not provided',
     phone: 'Phone',
     recentHint: 'Most recent 20',
+    credit: {
+      title: 'Credit line',
+      usage: '{receivable} receivable of {limit} ({pct}%)',
+      warn: 'Running low',
+      over: 'Limit reached',
+      hint: '{pending} unsettled orders; payments free the line back up. Hidden for accounts without credit control.',
+      aria: 'Credit line {usage}% used',
+    },
   },
 
   products: {
@@ -434,6 +443,24 @@ export default {
     previewFailed: 'Could not load the preview',
     startDate: 'Start date',
     endDate: 'End date',
+    receivables: {
+      title: 'Receivables aging',
+      summary: '{total} unsettled · {orders} orders awaiting payment',
+      buckets: {
+        current: 'Under 30 days',
+        d30: '30–60 days',
+        d60: '60–90 days',
+        d90: 'Over 90 days',
+      },
+      customer: 'Customer',
+      amount: 'Receivable',
+      orders: 'Orders',
+      oldest: 'Oldest unpaid',
+      days: '{n} days',
+      limit: 'Credit line',
+      usage: '{pct}% of {limit}',
+      noLimit: 'Not controlled',
+    },
   },
 
   audit: {

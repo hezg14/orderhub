@@ -6,9 +6,9 @@ import { prisma } from '../lib/prisma';
 import { authenticate } from '../middlewares/auth';
 import { validateBody, validateQuery } from '../middlewares/validate';
 import {
-  createCustomerSchema,
+  createCustomerWriteSchema,
   listCustomersQuery,
-  updateCustomerSchema,
+  updateCustomerWriteSchema,
   type CreateCustomerInput,
 } from '../schemas';
 import { writeAuditStandalone } from '../services/audit.service';
@@ -27,9 +27,11 @@ interface CustomerRow {
   phone: string | null;
   address: string | null;
   note: string | null;
+  credit_limit: Prisma.Decimal | null;
   created_at: Date;
   order_count: number;
   total_spent: Prisma.Decimal;
+  receivable: Prisma.Decimal;
   last_order_at: Date | null;
 }
 
@@ -52,9 +54,10 @@ customersRouter.get(
     const search = q.q ? `%${q.q}%` : null;
 
     const rows = await prisma.$queryRaw<CustomerRow[]>(Prisma.sql`
-      SELECT c.id, c.name, c.name_en, c.company, c.company_en, c.email, c.phone, c.address, c.note, c.created_at,
+      SELECT c.id, c.name, c.name_en, c.company, c.company_en, c.email, c.phone, c.address, c.note, c.created_at, c.credit_limit,
              COUNT(o.id)::int AS order_count,
              COALESCE(SUM(o.total) FILTER (WHERE o.status <> 'cancelled'), 0) AS total_spent,
+             COALESCE(SUM(o.total) FILTER (WHERE o.status = 'pending'), 0) AS receivable,
              MAX(o.created_at) AS last_order_at
       FROM customers c
       LEFT JOIN orders o ON o.customer_id = c.id
@@ -91,9 +94,11 @@ customersRouter.get(
       phone: r.phone,
       address: r.address,
       note: r.note,
+      creditLimit: r.credit_limit == null ? null : Number(r.credit_limit),
       createdAt: r.created_at,
       orderCount: r.order_count,
       totalSpent: Number(r.total_spent),
+      receivable: Number(r.receivable),
       lastOrderAt: r.last_order_at,
     }));
 
@@ -108,13 +113,20 @@ customersRouter.get(
     const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer) throw AppError.notFound('Customer');
 
-    const [agg, recentOrders] = await prisma.$transaction([
+    const [agg, pendingAgg, recentOrders] = await prisma.$transaction([
       prisma.order.aggregate({
         where: { customerId: id, status: { not: 'cancelled' } },
         _count: { _all: true },
         _sum: { total: true },
         _max: { createdAt: true },
         _avg: { total: true },
+      }),
+      // Receivable = unsettled (pending) orders; feeds the credit-usage bar.
+      prisma.order.aggregate({
+        where: { customerId: id, status: 'pending' },
+        _count: { _all: true },
+        _sum: { total: true },
+        _min: { createdAt: true },
       }),
       prisma.order.findMany({
         where: { customerId: id },
@@ -130,6 +142,9 @@ customersRouter.get(
         revenue: Number(agg._sum.total ?? 0),
         avgOrder: Number(agg._avg.total ?? 0),
         lastOrderAt: agg._max.createdAt,
+        receivable: Number(pendingAgg._sum.total ?? 0),
+        pendingOrders: pendingAgg._count._all,
+        oldestPendingAt: pendingAgg._min.createdAt,
       },
       recentOrders,
     });
@@ -138,11 +153,19 @@ customersRouter.get(
 
 customersRouter.post(
   '/',
-  validateBody(createCustomerSchema),
+  validateBody(createCustomerWriteSchema),
   asyncHandler(async (req, res) => {
-    const input = req.body as CreateCustomerInput;
+    const input = req.body as CreateCustomerInput & { creditLimit?: number | null };
+    if (input.creditLimit !== undefined && req.user!.role !== 'admin') {
+      throw AppError.forbidden('Only an admin can set a credit limit');
+    }
     const customer = await prisma.customer.create({
-      data: { ...input, company: input.company || null, email: input.email || null },
+      data: {
+        ...input,
+        company: input.company || null,
+        email: input.email || null,
+        creditLimit: input.creditLimit ?? null,
+      },
     });
     await writeAuditStandalone({
       userId: req.user!.id,
@@ -158,9 +181,14 @@ customersRouter.post(
 
 customersRouter.patch(
   '/:id',
-  validateBody(updateCustomerSchema),
+  validateBody(updateCustomerWriteSchema),
   asyncHandler(async (req, res) => {
     const id = req.params.id!;
+    // The credit ceiling is financial policy: reading it is everyone's job,
+    // changing it is the owner's.
+    if ('creditLimit' in (req.body as object) && req.user!.role !== 'admin') {
+      throw AppError.forbidden('Only an admin can change a credit limit');
+    }
     const before = await prisma.customer.findUnique({ where: { id } });
     if (!before) throw AppError.notFound('Customer');
 

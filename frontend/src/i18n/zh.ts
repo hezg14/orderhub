@@ -259,6 +259,7 @@ export default {
     stock: '库存',
     overStockSummary: '有商品的订购数量超过当前库存，请调整后再提交。',
     tip: '提交后订单进入「待付款」，库存立即扣减；取消订单会退回库存。',
+    creditExceeded: '超出客户信用额度：额度 {limit}，当前应收 {receivable}，本单 {attempted}，还差 {shortfall}。请先回款或调低本单金额。',
   },
 
   orderDetail: {
@@ -368,6 +369,14 @@ export default {
     noCompany: '未填写公司',
     phone: '电话',
     recentHint: '最近 20 笔',
+    credit: {
+      title: '信用额度',
+      usage: '应收 {receivable} / 额度 {limit}（{pct}%）',
+      warn: '额度吃紧',
+      over: '额度已满',
+      hint: '当前有 {pending} 笔未结清订单；回款后额度自动释放。客户无信用额度管控时不显示本卡。',
+      aria: '信用额度已使用 {usage}%',
+    },
   },
 
   products: {
@@ -429,6 +438,24 @@ export default {
     previewFailed: '预览失败',
     startDate: '开始日期',
     endDate: '结束日期',
+    receivables: {
+      title: '应收账款账龄',
+      summary: '未结清合计 {total} · {orders} 笔待收款',
+      buckets: {
+        current: '30 天内',
+        d30: '30–60 天',
+        d60: '60–90 天',
+        d90: '90 天以上',
+      },
+      customer: '客户',
+      amount: '应收金额',
+      orders: '笔数',
+      oldest: '最久欠款',
+      days: '{n} 天',
+      limit: '信用额度',
+      usage: '已用 {pct}% / {limit}',
+      noLimit: '未管控',
+    },
   },
 
   audit: {

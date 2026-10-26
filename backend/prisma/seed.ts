@@ -23,28 +23,31 @@ const STAFF_EMAIL = 'staff@orderhub.demo';
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? 'Demo1234';
 const STAFF_PASSWORD = process.env.SEED_STAFF_PASSWORD ?? 'Demo1234';
 
-// [name, company, nameEn, companyEn, contact, phone, address]
+// [name, company, nameEn, companyEn, contact, phone, address, creditLimit]
+// creditLimit: open-credit ceiling in CNY; null = cash customer (no control).
+// The most-indebted customer gets clamped to receivable+¥500 after seeding, so
+// the demo always has one account one order away from tripping the limit.
 const CUSTOMERS = [
-  ['张三贸易', '张三贸易有限公司', 'Zhangsan Trading', 'Zhangsan Trading Co., Ltd.', '张伟', '13800138001', '上海市浦东新区张江路 88 号 3 栋'],
-  ['李氏商行', '李氏商行', 'Li Trading House', 'Li Trading House', '李娜', '13900139002', '杭州市余杭区文一西路 1218 号'],
-  ['王五批发', '王五批发中心', 'Wangwu Wholesale', 'Wangwu Wholesale Center', '王强', '13700137003', '广州市白云区机场路 302 号'],
-  ['赵六零售', '赵六便利连锁', 'Zhaoliu Retail', 'Zhaoliu Convenience Chain', '赵敏', '13600136004', '成都市武侯区科华北路 62 号'],
-  ['恒达建材', '恒达建材集团', 'Hengda Building Materials', 'Hengda BM Group', '陈刚', '13500135005', '南京市江宁区将军大道 199 号'],
-  ['金桥五金', '金桥五金机电', 'Jinqiao Hardware', 'Jinqiao Hardware & Electrics', '刘洋', '13400134006', '苏州市工业园区星湖街 328 号'],
-  ['南方日用品', '南方日用品有限公司', 'Nanfang Daily Goods', 'Nanfang Daily Goods Co., Ltd.', '黄丽', '13300133007', '东莞市南城区科技路 7 号'],
-  ['华美文具', '华美文具有限公司', 'Huamei Stationery', 'Huamei Stationery Co., Ltd.', '周涛', '13200132008', '宁波市鄞州区四明中路 108 号'],
-  ['优品家居', '优品家居生活馆', 'Youpin Home', 'Youpin Home Living', '吴静', '13100131009', '武汉市洪山区珞喻路 152 号'],
-  ['启明电子', '启明电子科技', 'Qiming Electronics', 'Qiming Electronic Tech', '郑凯', '13000130010', '深圳市南山区科技园南区 9 栋'],
-  ['天禾食品', '天禾食品有限公司', 'Tianhe Food', 'Tianhe Food Co., Ltd.', '孙芳', '18900189011', '济南市历下区经十路 118 号'],
-  ['瑞丰服饰', '瑞丰服饰贸易', 'Ruifeng Apparel', 'Ruifeng Apparel Trading', '马超', '18800188012', '泉州市丰泽区东海大街 55 号'],
-  ['兴隆电器', '兴隆电器城', 'Xinglong Appliances', 'Xinglong Electric City', '朱琳', '18700187013', '长沙市岳麓区枫林三路 238 号'],
-  ['恒信汽配', '恒信汽配商行', 'Hengxin Auto Parts', 'Hengxin Auto Parts Store', '胡军', '18600186014', '郑州市金水区花园路 66 号'],
-  ['宏图包装', '宏图包装材料厂', 'Hongtu Packaging', 'Hongtu Packaging Materials', '郭雪', '18500185015', '佛山市顺德区乐从镇 12 号'],
-  ['安泰医疗', '安泰医疗器械', 'Antai Medical', 'Antai Medical Devices', '何平', '18400184016', '西安市雁塔区高新四路 9 号'],
-  ['绿源农业', '绿源农业合作社', 'Lvyuan Agriculture', 'Lvyuan Agri Cooperative', '高峰', '18300183017', '合肥市蜀山区长江西路 456 号'],
-  ['中远物流', '中远物流仓储', 'Zhongyuan Logistics', 'Zhongyuan Logistics & Storage', '林涛', '18200182018', '天津市滨海新区新港路 88 号'],
-  ['金鹏玩具', '金鹏玩具礼品', 'Jinpeng Toys', 'Jinpeng Toys & Gifts', '罗芳', '18100181019', '汕头市澄海区莱美路 33 号'],
-  ['盛世礼品', '盛世礼品定制', 'Shengshi Gifts', 'Shengshi Gift Custom', '梁宇', '18000180020', '厦门市思明区湖滨南路 101 号'],
+  ['张三贸易', '张三贸易有限公司', 'Zhangsan Trading', 'Zhangsan Trading Co., Ltd.', '张伟', '13800138001', '上海市浦东新区张江路 88 号 3 栋', 80000],
+  ['李氏商行', '李氏商行', 'Li Trading House', 'Li Trading House', '李娜', '13900139002', '杭州市余杭区文一西路 1218 号', 50000],
+  ['王五批发', '王五批发中心', 'Wangwu Wholesale', 'Wangwu Wholesale Center', '王强', '13700137003', '广州市白云区机场路 302 号', 120000],
+  ['赵六零售', '赵六便利连锁', 'Zhaoliu Retail', 'Zhaoliu Convenience Chain', '赵敏', '13600136004', '成都市武侯区科华北路 62 号', 30000],
+  ['恒达建材', '恒达建材集团', 'Hengda Building Materials', 'Hengda BM Group', '陈刚', '13500135005', '南京市江宁区将军大道 199 号', 200000],
+  ['金桥五金', '金桥五金机电', 'Jinqiao Hardware', 'Jinqiao Hardware & Electrics', '刘洋', '13400134006', '苏州市工业园区星湖街 328 号', 60000],
+  ['南方日用品', '南方日用品有限公司', 'Nanfang Daily Goods', 'Nanfang Daily Goods Co., Ltd.', '黄丽', '13300133007', '东莞市南城区科技路 7 号', 45000],
+  ['华美文具', '华美文具有限公司', 'Huamei Stationery', 'Huamei Stationery Co., Ltd.', '周涛', '13200132008', '宁波市鄞州区四明中路 108 号', 25000],
+  ['优品家居', '优品家居生活馆', 'Youpin Home', 'Youpin Home Living', '吴静', '13100131009', '武汉市洪山区珞喻路 152 号', 18000],
+  ['启明电子', '启明电子科技', 'Qiming Electronics', 'Qiming Electronic Tech', '郑凯', '13000130010', '深圳市南山区科技园南区 9 栋', 150000],
+  ['天禾食品', '天禾食品有限公司', 'Tianhe Food', 'Tianhe Food Co., Ltd.', '孙芳', '18900189011', '济南市历下区经十路 118 号', 70000],
+  ['瑞丰服饰', '瑞丰服饰贸易', 'Ruifeng Apparel', 'Ruifeng Apparel Trading', '马超', '18800188012', '泉州市丰泽区东海大街 55 号', 40000],
+  ['兴隆电器', '兴隆电器城', 'Xinglong Appliances', 'Xinglong Electric City', '朱琳', '18700187013', '长沙市岳麓区枫林三路 238 号', 90000],
+  ['恒信汽配', '恒信汽配商行', 'Hengxin Auto Parts', 'Hengxin Auto Parts Store', '胡军', '18600186014', '郑州市金水区花园路 66 号', 35000],
+  ['宏图包装', '宏图包装材料厂', 'Hongtu Packaging', 'Hongtu Packaging Materials', '郭雪', '18500185015', '佛山市顺德区乐从镇 12 号', 20000],
+  ['安泰医疗', '安泰医疗器械', 'Antai Medical', 'Antai Medical Devices', '何平', '18400184016', '西安市雁塔区高新四路 9 号', 100000],
+  ['绿源农业', '绿源农业合作社', 'Lvyuan Agriculture', 'Lvyuan Agri Cooperative', '高峰', '18300183017', '合肥市蜀山区长江西路 456 号', 12000],
+  ['中远物流', '中远物流仓储', 'Zhongyuan Logistics', 'Zhongyuan Logistics & Storage', '林涛', '18200182018', '天津市滨海新区新港路 88 号', null],
+  ['金鹏玩具', '金鹏玩具礼品', 'Jinpeng Toys', 'Jinpeng Toys & Gifts', '罗芳', '18100181019', '汕头市澄海区莱美路 33 号', 15000],
+  ['盛世礼品', '盛世礼品定制', 'Shengshi Gifts', 'Shengshi Gift Custom', '梁宇', '18000180020', '厦门市思明区湖滨南路 101 号', null],
 ] as const;
 
 // [sku, name, nameEn, category, unitPrice, stock]
@@ -115,6 +118,7 @@ const dayKey = (d: Date) =>
 
 async function main() {
   console.log('→ clearing existing data');
+  await prisma.idempotencyKey.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
@@ -144,7 +148,7 @@ async function main() {
 
   console.log('→ customers');
   const customers = [];
-  for (const [name, company, nameEn, companyEn, contact, phone, address] of CUSTOMERS) {
+  for (const [name, company, nameEn, companyEn, contact, phone, address, creditLimit] of CUSTOMERS) {
     customers.push(
       await prisma.customer.create({
         data: {
@@ -156,6 +160,7 @@ async function main() {
           address,
           email: `contact${customers.length + 1}@${name.replace(/[^\w]/g, '') || 'demo'}.example`,
           note: contact ? `联系人：${contact}` : null,
+          creditLimit: creditLimit == null ? null : new Prisma.Decimal(creditLimit),
         },
       }),
     );
@@ -279,6 +284,27 @@ async function main() {
     _sum: { total: true },
   });
 
+  // Credit demo: clamp the most-indebted customer to receivable + ¥500, so the
+  // very next order for that account trips CREDIT_LIMIT_EXCEEDED on screen.
+  const pendingByCustomer = await prisma.order.groupBy({
+    by: ['customerId'],
+    _sum: { total: true },
+    where: { status: 'pending' },
+  });
+  const mostInDebt = pendingByCustomer.sort(
+    (a, b) => Number(b._sum.total ?? 0) - Number(a._sum.total ?? 0),
+  )[0];
+  let creditDemo = '';
+  if (mostInDebt) {
+    const receivable = Number(mostInDebt._sum.total ?? 0);
+    const customer = await prisma.customer.update({
+      where: { id: mostInDebt.customerId },
+      data: { creditLimit: new Prisma.Decimal(receivable + 500) },
+      select: { name: true },
+    });
+    creditDemo = `${customer.name} 应收 ¥${receivable.toFixed(2)} / 额度 ¥${(receivable + 500).toFixed(2)}`;
+  }
+
   console.log('');
   console.log('  OrderHub seed complete');
   console.log('  ─────────────────────────────────────────────');
@@ -287,6 +313,7 @@ async function main() {
   console.log(`  products   ${products.length}   (5 at or below low-stock threshold)`);
   console.log(`  orders     ${created}   worth ¥${Number(summary._sum.total ?? 0).toFixed(2)}`);
   console.log(`  audit      ${await prisma.auditLog.count()} entries`);
+  if (creditDemo) console.log(`  credit     ${creditDemo}  ← 下单即触发额度拦截`);
   console.log('  ─────────────────────────────────────────────');
   console.log(`  admin  ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
   console.log(`  staff  ${STAFF_EMAIL} / ${STAFF_PASSWORD}`);

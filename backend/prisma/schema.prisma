@@ -40,6 +40,7 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   orders       Order[]
   auditLogs    AuditLog[]
+  idempotencyKeys IdempotencyKey[]
 
   @@map("users")
 }
@@ -56,6 +57,10 @@ model Customer {
   phone     String?
   address   String?
   note      String?
+  // Open-credit ceiling in CNY. Null = no credit control (cash customer):
+  // order creation then never checks receivables. The check itself lives in
+  // order.service.createOrder, inside the same transaction as the stock lock.
+  creditLimit Decimal? @map("credit_limit") @db.Decimal(12, 2)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   orders    Order[]
 
@@ -95,6 +100,7 @@ model Order {
   customer  Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   creator   User        @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   items     OrderItem[]
+  idempotencyKeys IdempotencyKey[]
 
   @@index([status])
   @@index([customerId])
@@ -136,4 +142,21 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@map("audit_logs")
+}
+
+/// Client-side idempotency guard for order creation. The client sends an
+/// `Idempotency-Key` header; the first request stores it inside the same
+/// transaction that creates the order, so a retry can only ever find a key
+/// whose order is fully committed. Rows older than 24h are swept lazily.
+model IdempotencyKey {
+  key       String   @id @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("idempotency_keys")
 }

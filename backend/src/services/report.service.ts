@@ -274,3 +274,114 @@ export function toCsv(report: ReportResult): string {
 export function csvFilename(type: ReportType, range: ReportResult['range']) {
   return `${type}-${range.from}_${range.to}.csv`;
 }
+
+/* ------------------------------------------------------- receivables aging */
+
+export interface ReceivableBucket {
+  key: 'current' | 'd30' | 'd60' | 'd90';
+  total: number;
+  count: number;
+}
+
+export interface ReceivableCustomer {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  company: string | null;
+  companyEn: string | null;
+  receivable: number;
+  orderCount: number;
+  /** Age in days of the oldest unsettled order. */
+  oldestDays: number;
+  creditLimit: number | null;
+  /** receivable / creditLimit, null when the account is not under control. */
+  usage: number | null;
+}
+
+export interface ReceivablesReport {
+  buckets: ReceivableBucket[];
+  customers: ReceivableCustomer[];
+  grandTotal: number;
+  totalPending: number;
+}
+
+interface AgingRow {
+  bucket: 'current' | 'd30' | 'd60' | 'd90';
+  total: Prisma.Decimal;
+  count: number;
+}
+
+interface AgingCustomerRow {
+  id: string;
+  name: string;
+  name_en: string | null;
+  company: string | null;
+  company_en: string | null;
+  receivable: Prisma.Decimal;
+  order_count: number;
+  oldest_at: Date;
+  credit_limit: Prisma.Decimal | null;
+}
+
+/**
+ * Accounts-receivable aging. A wholesale book lives and dies by the question
+ * "who owes me what, and for how long" — receivable = the sum of a customer's
+ * unsettled (pending) orders, bucketed by how long ago each invoice was made.
+ */
+export async function receivablesAging(): Promise<ReceivablesReport> {
+  const [rows, customerRows] = await prisma.$transaction([
+    prisma.$queryRaw<AgingRow[]>`
+      SELECT
+        CASE
+          WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 'current'
+          WHEN created_at >= CURRENT_DATE - INTERVAL '60 days' THEN 'd30'
+          WHEN created_at >= CURRENT_DATE - INTERVAL '90 days' THEN 'd60'
+          ELSE 'd90'
+        END AS bucket,
+        COALESCE(SUM(total), 0) AS total,
+        COUNT(*)::int AS count
+      FROM orders
+      WHERE status = 'pending'
+      GROUP BY 1`,
+    prisma.$queryRaw<AgingCustomerRow[]>`
+      SELECT c.id, c.name, c.name_en, c.company, c.company_en,
+             COALESCE(SUM(o.total), 0) AS receivable,
+             COUNT(o.id)::int AS order_count,
+             MIN(o.created_at) AS oldest_at,
+             c.credit_limit
+      FROM orders o
+      JOIN customers c ON c.id = o.customer_id
+      WHERE o.status = 'pending'
+      GROUP BY c.id
+      ORDER BY receivable DESC`,
+  ]);
+
+  const byBucket = new Map(rows.map((r) => [r.bucket, r]));
+  const buckets: ReceivableBucket[] = (['current', 'd30', 'd60', 'd90'] as const).map((key) => ({
+    key,
+    total: Number(byBucket.get(key)?.total ?? 0),
+    count: byBucket.get(key)?.count ?? 0,
+  }));
+
+  const now = Date.now();
+  const customers: ReceivableCustomer[] = customerRows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    nameEn: r.name_en,
+    company: r.company,
+    companyEn: r.company_en,
+    receivable: Number(r.receivable),
+    orderCount: r.order_count,
+    oldestDays: Math.floor((now - new Date(r.oldest_at).getTime()) / 86_400_000),
+    creditLimit: r.credit_limit == null ? null : Number(r.credit_limit),
+    usage:
+      r.credit_limit == null || Number(r.credit_limit) === 0
+        ? null
+        : Number(r.receivable) / Number(r.credit_limit),
+  }));
+
+  const grandTotal = buckets.reduce((sum, b) => sum + b.total, 0);
+  const totalPending = customers.reduce((sum, c) => sum + c.orderCount, 0);
+
+  return { buckets, customers, grandTotal, totalPending };
+}

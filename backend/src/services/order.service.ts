@@ -50,7 +50,37 @@ export { TRANSITIONS, STATUS_LABEL, assertTransition };
 
 /* ------------------------------------------------------------------ create */
 
-export async function createOrder(input: CreateOrderInput, actorId: string, requestId: string) {
+interface LockedCustomer {
+  id: string;
+  name: string;
+  credit_limit: Prisma.Decimal | null;
+}
+
+type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: { items: { include: { product: true } }; customer: true };
+}>;
+
+export interface CreateOrderResult {
+  order: OrderWithRelations;
+  /** True when the Idempotency-Key had already been used — the stored order is returned. */
+  replay: boolean;
+}
+
+/** Replay lookup shared by the fast-path and the insert-race recovery. */
+async function findReplay(key: string): Promise<OrderWithRelations | null> {
+  const row = await prisma.idempotencyKey.findUnique({
+    where: { key },
+    include: { order: { include: { items: { include: { product: true } }, customer: true } } },
+  });
+  return row?.order ?? null;
+}
+
+export async function createOrder(
+  input: CreateOrderInput,
+  actorId: string,
+  requestId: string,
+  idempotencyKey?: string,
+): Promise<CreateOrderResult> {
   // Duplicate product rows would each pass the stock check and oversell, so
   // merge them before the lock is taken.
   const merged = new Map<string, number>();
@@ -59,105 +89,165 @@ export async function createOrder(input: CreateOrderInput, actorId: string, requ
   }
   const productIds = [...merged.keys()].sort();
 
-  return prisma.$transaction(
-    async (tx) => {
-      const customer = await tx.customer.findUnique({ where: { id: input.customerId } });
-      if (!customer) throw AppError.notFound('Customer');
+  // Replay fast-path. The authoritative check stays inside the transaction —
+  // the unique index on the key is what makes concurrent retries safe.
+  if (idempotencyKey) {
+    const existing = await findReplay(idempotencyKey);
+    if (existing) return { order: existing, replay: true };
+  }
 
-      // ORDER BY id is mandatory: two concurrent orders touching the same two
-      // products in opposite order deadlock otherwise.
-      const products = await tx.$queryRaw<LockedProduct[]>`
-        SELECT id, stock, unit_price, name
-        FROM products
-        WHERE id = ANY(${productIds}::uuid[])
-        ORDER BY id
-        FOR UPDATE`;
+  try {
+    const order = await prisma.$transaction(
+      async (tx) => {
+        // Lock the customer row too: the credit check must not run against a
+        // snapshot that two concurrent orders can both fit into.
+        const customers = await tx.$queryRaw<LockedCustomer[]>`
+          SELECT id, name, credit_limit
+          FROM customers
+          WHERE id = ${input.customerId}::uuid
+          FOR UPDATE`;
+        const customer = customers[0];
+        if (!customer) throw AppError.notFound('Customer');
 
-      if (products.length !== productIds.length) {
-        throw AppError.notFound('One of the selected products');
-      }
+        // ORDER BY id is mandatory: two concurrent orders touching the same two
+        // products in opposite order deadlock otherwise.
+        const products = await tx.$queryRaw<LockedProduct[]>`
+          SELECT id, stock, unit_price, name
+          FROM products
+          WHERE id = ANY(${productIds}::uuid[])
+          ORDER BY id
+          FOR UPDATE`;
 
-      const byId = new Map(products.map((p) => [p.id, p]));
-      const shortages: { productId: string; name: string; available: number; requested: number }[] = [];
-
-      for (const [productId, qty] of merged) {
-        const p = byId.get(productId)!;
-        if (p.stock < qty) {
-          shortages.push({ productId, name: p.name, available: p.stock, requested: qty });
+        if (products.length !== productIds.length) {
+          throw AppError.notFound('One of the selected products');
         }
-      }
-      if (shortages.length > 0) {
-        throw AppError.conflict('Not enough stock for some items', shortages);
-      }
 
-      let subtotal = new Prisma.Decimal(0);
-      const lines = [...merged].map(([productId, quantity]) => {
-        const p = byId.get(productId)!;
-        const lineTotal = p.unit_price.mul(quantity);
-        subtotal = subtotal.add(lineTotal);
-        return {
-          productId,
-          quantity,
-          unitPrice: p.unit_price,
-          subtotal: lineTotal,
-        };
-      });
+        const byId = new Map(products.map((p) => [p.id, p]));
+        const shortages: { productId: string; name: string; available: number; requested: number }[] = [];
 
-      const discount = new Prisma.Decimal(input.discount);
-      if (discount.greaterThan(subtotal)) {
-        throw AppError.rule('Discount cannot exceed the subtotal', {
-          subtotal: money(subtotal),
-          discount: input.discount,
+        for (const [productId, qty] of merged) {
+          const p = byId.get(productId)!;
+          if (p.stock < qty) {
+            shortages.push({ productId, name: p.name, available: p.stock, requested: qty });
+          }
+        }
+        if (shortages.length > 0) {
+          throw AppError.conflict('Not enough stock for some items', shortages);
+        }
+
+        let subtotal = new Prisma.Decimal(0);
+        const lines = [...merged].map(([productId, quantity]) => {
+          const p = byId.get(productId)!;
+          const lineTotal = p.unit_price.mul(quantity);
+          subtotal = subtotal.add(lineTotal);
+          return {
+            productId,
+            quantity,
+            unitPrice: p.unit_price,
+            subtotal: lineTotal,
+          };
         });
-      }
-      const total = subtotal.sub(discount);
-      const orderNo = await nextOrderNo(tx);
 
-      const order = await tx.order.create({
-        data: {
-          orderNo,
-          customerId: input.customerId,
-          status: 'pending',
-          subtotal,
-          discount,
-          total,
-          note: input.note || null,
-          createdBy: actorId,
-          items: { create: lines },
-        },
-        include: { items: { include: { product: true } }, customer: true },
-      });
+        const discount = new Prisma.Decimal(input.discount);
+        if (discount.greaterThan(subtotal)) {
+          throw AppError.rule('Discount cannot exceed the subtotal', {
+            subtotal: money(subtotal),
+            discount: input.discount,
+          });
+        }
+        const total = subtotal.sub(discount);
 
-      // Decrement in one statement per product; the row is already locked.
-      for (const [productId, qty] of merged) {
-        await tx.product.update({
-          where: { id: productId },
-          data: { stock: { decrement: qty } },
+        // Credit control. NULL limit = cash customer, skip. Receivable is the
+        // sum of the customer's unsettled (pending) orders; the customer row
+        // lock above serialises concurrent check-then-insert for the account.
+        if (customer.credit_limit != null) {
+          const rows = await tx.$queryRaw<{ receivable: Prisma.Decimal }[]>`
+            SELECT COALESCE(SUM(total), 0) AS receivable
+            FROM orders
+            WHERE customer_id = ${input.customerId}::uuid AND status = 'pending'`;
+          const receivable = rows[0]?.receivable ?? new Prisma.Decimal(0);
+          if (receivable.add(total).greaterThan(customer.credit_limit)) {
+            throw AppError.rule('Credit limit exceeded for this customer', {
+              reason: 'CREDIT_LIMIT_EXCEEDED',
+              creditLimit: money(customer.credit_limit),
+              receivable: money(receivable),
+              attemptedTotal: money(total),
+              shortfall: money(receivable.add(total).sub(customer.credit_limit)),
+            });
+          }
+        }
+
+        const orderNo = await nextOrderNo(tx);
+
+        const order = await tx.order.create({
+          data: {
+            orderNo,
+            customerId: input.customerId,
+            status: 'pending',
+            subtotal,
+            discount,
+            total,
+            note: input.note || null,
+            createdBy: actorId,
+            items: { create: lines },
+          },
+          include: { items: { include: { product: true } }, customer: true },
         });
-      }
 
-      await writeAudit(tx, {
-        userId: actorId,
-        action: 'create',
-        entity: 'order',
-        entityId: order.id,
-        requestId,
-        detail: {
-          orderNo,
-          customer: customer.name,
-          total: money(total),
-          lines: lines.map((l) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unitPrice: money(l.unitPrice),
-          })),
-        },
-      });
+        // Decrement in one statement per product; the row is already locked.
+        for (const [productId, qty] of merged) {
+          await tx.product.update({
+            where: { id: productId },
+            data: { stock: { decrement: qty } },
+          });
+        }
 
-      return order;
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 15_000 },
-  );
+        await writeAudit(tx, {
+          userId: actorId,
+          action: 'create',
+          entity: 'order',
+          entityId: order.id,
+          requestId,
+          detail: {
+            orderNo,
+            customer: customer.name,
+            total: money(total),
+            lines: lines.map((l) => ({
+              productId: l.productId,
+              quantity: l.quantity,
+              unitPrice: money(l.unitPrice),
+            })),
+          },
+        });
+
+        // The key commits atomically with the order it produced: a replay can
+        // only ever observe a fully-created order, never a half transaction.
+        if (idempotencyKey) {
+          await tx.idempotencyKey.create({
+            data: { key: idempotencyKey, orderId: order.id, userId: actorId },
+          });
+        }
+
+        return order;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 15_000 },
+    );
+
+    return { order, replay: false };
+  } catch (e) {
+    // Lost the key-insert race against a concurrent identical retry: the
+    // winner committed key + order together, so hand back that order instead
+    // of surfacing a unique-violation.
+    if (
+      idempotencyKey &&
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === 'P2002'
+    ) {
+      const existing = await findReplay(idempotencyKey);
+      if (existing) return { order: existing, replay: true };
+    }
+    throw e;
+  }
 }
 
 /* ------------------------------------------------------------------ status */
