@@ -2,7 +2,7 @@
 import { reportsApi, type ReportType } from '@/api';
 import { ApiError } from '@/api/client';
 import type { ReceivablesReport, ReportPreview } from '@/types';
-import { useI18n } from '@/i18n';
+import { useI18n, localCompany, localName } from '@/i18n';
 import { fmtMoney } from '@/utils/format';
 import { MOBILE_QUERY, useMediaQuery } from '@/composables/useMediaQuery';
 import { Download, Search } from '@element-plus/icons-vue';
@@ -176,9 +176,9 @@ onMounted(async () => {
       <el-table v-if="!isMobile" :data="receivables.customers" style="width: 100%">
         <el-table-column :label="t('reports.receivables.customer')" min-width="180">
           <template #default="{ row }">
-            <span>{{ row.nameEn ?? row.name }}</span>
+            <span>{{ localName(row) }}</span>
             <span v-if="row.company || row.companyEn" class="muted cell-sub">
-              {{ row.companyEn ?? row.company }}
+              {{ localCompany(row) }}
             </span>
           </template>
         </el-table-column>
@@ -208,7 +208,7 @@ onMounted(async () => {
       <ul v-else class="rec-list">
         <li v-for="row in receivables.customers" :key="row.id" class="rec">
           <div class="rec-head">
-            <span>{{ row.nameEn ?? row.name }}</span>
+            <span>{{ localName(row) }}</span>
             <b class="tabular">{{ fmtMoney(row.receivable) }}</b>
           </div>
           <div class="rec-sub muted">

@@ -33,7 +33,6 @@ async function api(
     headers: {
       'content-type': 'application/json',
       ...(cookie ? { cookie } : {}),
-      ...(body !== undefined ? {} : {}),
       ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -48,6 +47,15 @@ const login = async () => {
   const raw = res.headers.getSetCookie().find((c) => c.startsWith('oh_token='));
   if (!raw) throw new Error('login did not set a cookie');
   cookie = raw.split(';')[0]!;
+};
+
+/** Log a specific account in and return its cookie without touching the global one. */
+const loginAs = async (email: string): Promise<string> => {
+  const res = await api('POST', '/api/auth/login', { email, password: PASSWORD });
+  expect(res.status).toBe(200);
+  const raw = res.headers.getSetCookie().find((c) => c.startsWith('oh_token='));
+  if (!raw) throw new Error('login did not set a cookie');
+  return raw.split(';')[0]!;
 };
 
 let customerId = '';
@@ -149,6 +157,40 @@ describe('idempotent order creation', () => {
       'idempotency-key': 'not-a-uuid',
     });
     expect(res.status).toBe(400);
+  });
+
+  it('never hands a key owned by user A to user B', async () => {
+    // A second account tries to reuse the first request's key. The key is a
+    // UUID (unguessable), but if one ever leaks, the lookup must still be
+    // scoped to its owner — B gets a conflict, not A's order.
+    const other = await prisma.user.create({
+      data: {
+        email: `replay-${randomUUID().slice(0, 8)}@orderhub.test`,
+        name: 'Replay Other User',
+        role: 'admin',
+        passwordHash: await bcrypt.hash(PASSWORD, 4),
+      },
+    });
+    userIds.push(other.id);
+
+    const ownerKey = randomUUID();
+    const payload = { customerId, items: [{ productId: await highStockProduct(), quantity: 1 }] };
+    const first = await api('POST', '/api/orders', payload, { 'idempotency-key': ownerKey });
+    expect(first.status).toBe(201);
+    track(first.body);
+
+    const ownerCookie = cookie;
+    cookie = await loginAs(other.email);
+    const hijack = await api('POST', '/api/orders', payload, { 'idempotency-key': ownerKey });
+    expect(hijack.status).toBe(409);
+    expect(hijack.body.data).toBeUndefined();
+    expect(hijack.body.error.code).toBe('CONFLICT');
+    cookie = ownerCookie;
+
+    // The owner still replays normally after the foreign attempt.
+    const replay = await api('POST', '/api/orders', payload, { 'idempotency-key': ownerKey });
+    expect(replay.headers.get('idempotent-replay')).toBe('true');
+    expect(replay.body.data.id).toBe(first.body.data.id);
   });
 });
 

@@ -66,13 +66,18 @@ export interface CreateOrderResult {
   replay: boolean;
 }
 
-/** Replay lookup shared by the fast-path and the insert-race recovery. */
-async function findReplay(key: string): Promise<OrderWithRelations | null> {
+/**
+ * Replay lookup shared by the fast-path and the insert-race recovery.
+ * Scoped to the caller: a key belongs to the account that created it, so a
+ * leaked key can never hand one user's order to another (the loser of that
+ * lookup falls through to the unique-violation path and gets a plain 409).
+ */
+async function findReplay(key: string, userId: string): Promise<OrderWithRelations | null> {
   const row = await prisma.idempotencyKey.findUnique({
     where: { key },
     include: { order: { include: { items: { include: { product: true } }, customer: true } } },
   });
-  return row?.order ?? null;
+  return row && row.userId === userId ? row.order : null;
 }
 
 export async function createOrder(
@@ -92,7 +97,7 @@ export async function createOrder(
   // Replay fast-path. The authoritative check stays inside the transaction —
   // the unique index on the key is what makes concurrent retries safe.
   if (idempotencyKey) {
-    const existing = await findReplay(idempotencyKey);
+    const existing = await findReplay(idempotencyKey, actorId);
     if (existing) return { order: existing, replay: true };
   }
 
@@ -243,7 +248,7 @@ export async function createOrder(
       e instanceof Prisma.PrismaClientKnownRequestError &&
       e.code === 'P2002'
     ) {
-      const existing = await findReplay(idempotencyKey);
+      const existing = await findReplay(idempotencyKey, actorId);
       if (existing) return { order: existing, replay: true };
     }
     throw e;
