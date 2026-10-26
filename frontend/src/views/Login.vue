@@ -15,9 +15,13 @@ const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-/* The hero numbers count up on mount — the panel boots like an instrument. */
-const demoOrders = useCountUp(computed(() => 64));
-const demoCustomers = useCountUp(computed(() => 20));
+/* The hero numbers count up on mount — the panel boots like an instrument.
+   Rounded + locale-grouped: a raw eased float (56.7757…) reads as a glitch,
+   and changing digit widths jitter the neighbouring stats. */
+const countOrders = useCountUp(computed(() => 64));
+const countCustomers = useCountUp(computed(() => 20));
+const demoOrders = computed(() => Math.round(countOrders.value).toLocaleString());
+const demoCustomers = computed(() => Math.round(countCustomers.value).toLocaleString());
 
 
 const form = reactive({
@@ -404,6 +408,7 @@ async function submit() {
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
 .numbers dd {

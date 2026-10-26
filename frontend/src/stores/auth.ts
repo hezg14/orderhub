@@ -44,6 +44,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       await authApi.logout();
+    } catch {
+      // Best-effort: the cookie also dies client-side and the server session
+      // expires on its own. A failed logout call must never trap the user on
+      // an authenticated page (e.g. a cold-starting Render free instance).
     } finally {
       user.value = null;
       bootstrapped.value = true;

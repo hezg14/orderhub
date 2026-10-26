@@ -28,10 +28,13 @@ const unwrapPaged = <T>(p: Promise<PagedEnvelope<T>>): Promise<Paged<T>> =>
 /* -------------------------------------------------------------------- auth */
 
 export const authApi = {
+  // Login/me tolerate the Render free plan's ~50s cold start; logout fails
+  // fast because it is best-effort (see stores/auth.ts) and must never trap
+  // the user on an authenticated page.
   login: (email: string, password: string) =>
-    unwrap(http.post<Envelope<User>>('/auth/login', { email, password })),
-  logout: () => unwrap(http.post<Envelope<{ ok: boolean }>>('/auth/logout')),
-  me: () => unwrap(http.get<Envelope<User>>('/auth/me')),
+    unwrap(http.post<Envelope<User>>('/auth/login', { email, password }, { timeout: 65_000 })),
+  logout: () => unwrap(http.post<Envelope<{ ok: boolean }>>('/auth/logout', undefined, { timeout: 5_000 })),
+  me: () => unwrap(http.get<Envelope<User>>('/auth/me', { timeout: 65_000 })),
   updateMe: (name: string) => unwrap(http.patch<Envelope<User>>('/auth/me', { name })),
 };
 
