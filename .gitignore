@@ -27,3 +27,4 @@ npm-debug.log*
 
 # vite config timestamps
 frontend/vite.config.ts.timestamp-*.mjs
+.neon
