@@ -25,6 +25,9 @@ npm-debug.log*
 # local review artefacts (scripts/shots-mobile.mjs output)
 .shots/
 
+# wrangler local state (deploy/keepalive)
+.wrangler/
+
 # vite config timestamps
 frontend/vite.config.ts.timestamp-*.mjs
 .neon
