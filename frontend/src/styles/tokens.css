@@ -1,0 +1,589 @@
+/* ==========================================================================
+   Design tokens — single source of truth for colour, spacing and type.
+   Nothing in a component may hard-code a hex value; if a new colour is needed
+   it gets a token here first.
+
+   Theming: light is `:root`, dark is `html.dark`. Every semantic token has a
+   dark twin, so "dark mode" is one class flip — components never branch on
+   theme in their own CSS.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------- brand ---- */
+  /* Electric indigo: distinctive against the sea of generic admin blues.
+     Restrained by design: solid color for interactive elements only —
+     gradients live solely inside the brand mark itself. */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  /* Solid fills that carry white text (buttons, avatars). In dark mode the
+     text-safe primary stays deep — the light indigo is for text and strokes. */
+  --primary-solid: #4f46e5;
+  --primary-solid-hover: #4338ca;
+  --primary-bg: #eef2ff;
+  --primary-border: #c7d2fe;
+  /* Signature gradient: reserved for the BrandMark symbol. Not for buttons,
+     rails, bars or avatars — spreading it everywhere is what makes a UI read
+     as machine-generated. */
+  --brand-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a855f7 100%);
+  --accent: #f59e0b;
+
+  /* -------------------------------------------------------- semantic --- */
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --info: #7c3aed;
+  --info-bg: #f5f3ff;
+
+  /* -------------------------------------------------------- neutrals --- */
+  --bg-page: #f6f7fb;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f3f9;
+  --bg-subtle: #f8f9fc;
+  --bg-inset: #eef0f7;
+  --border: #e4e7f0;
+  --border-light: #eef0f6;
+  --text-primary: #14161f;
+  --text-secondary: #5c637a;
+  --text-disabled: #9aa1b5;
+
+  /* --------------------------------------------------------- radius ---- */
+  --r-card: 10px;
+  --r-control: 6px;
+  --r-pill: 999px;
+  --r-drawer: 12px;
+
+  /* ------------------------------------------------------- elevation ---
+     Neutral, quiet shadows. Tinted/colored shadows read as decoration —
+     the mark of generated UI. */
+  --shadow-card: 0 1px 2px rgb(20 22 31 / 4%);
+  --shadow-hover: 0 2px 8px rgb(20 22 31 / 8%);
+  --shadow-overlay: 0 12px 32px rgb(20 22 31 / 16%);
+
+  /* ------------------------------------------------------- surfaces ---- */
+  --topbar-bg: rgb(255 255 255 / 82%);
+  --scrim: rgb(15 18 30 / 45%);
+  /* Command palette backdrop: deeper than a drawer scrim so the panel reads as
+     the only interactive layer on screen. */
+  --palette-scrim: rgb(15 18 30 / 42%);
+  /* Blueprint dot-grid: the page sits on engineering paper. */
+  --dot: #d9deec;
+
+  /* Sidebar stays a dark rail in BOTH themes. That contrast is what makes a
+     light UI feel structured instead of washed out. */
+  --sidebar-bg: #0e1119;
+  --sidebar-fg: #b9c0d4;
+  --sidebar-fg-strong: #ffffff;
+  --sidebar-hover: rgb(255 255 255 / 7%);
+  --sidebar-active-bg: rgb(255 255 255 / 11%);
+  --sidebar-active-fg: #c7d2fe;
+  --sidebar-border: rgb(255 255 255 / 9%);
+
+  /* Hero deck: the one surface (besides the mark) the brand may own outright.
+     Deep indigo in both themes — it reads as "console", not as decoration. */
+  --hero-bg: linear-gradient(115deg, #16163a 0%, #241f5c 46%, #3a1f68 100%);
+  --hero-fg: #f7f8fd;
+  --hero-fg-dim: rgb(226 232 240 / 62%);
+  --hero-line: rgb(255 255 255 / 18%);
+  --hero-cell-bg: rgb(255 255 255 / 7%);
+  --hero-cell-border: rgb(255 255 255 / 12%);
+  --hero-border: rgb(255 255 255 / 8%);
+  --hero-grid: rgb(255 255 255 / 5%);
+  --hero-hud: rgb(255 255 255 / 34%);
+
+  /* -------------------------------------------------------- spacing ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* --------------------------------------------------------- layout ---- */
+  --sidebar-w: 220px;
+  --header-h: 56px;
+  --content-max: 1480px;
+
+  /* --------------------------------------------------------- motion ---- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --t-fast: 150ms;
+  --t-base: 200ms;
+
+  /* --------------------------------------------------------- type ------ */
+  /* One mono stack for every "instrument" figure in the product. */
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ------------------------------------- element plus bridge (light) --- */
+  --el-color-primary: var(--primary);
+  --el-color-success: var(--success);
+  --el-color-warning: var(--warning);
+  --el-color-danger: var(--danger);
+  --el-color-info: #64748b;
+  --el-border-radius-base: var(--r-control);
+  --el-font-size-base: 14px;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-border-color: var(--border);
+  --el-border-color-light: var(--border-light);
+  --el-bg-color: var(--bg-card);
+  --el-bg-color-page: var(--bg-page);
+  --el-fill-color-light: var(--bg-hover);
+}
+
+/* ==========================================================================
+   DARK THEME — flip one class, everything follows.
+   Surfaces go cool-navy (not flat black) so elevation still reads.
+   ========================================================================== */
+
+html.dark {
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --primary-solid: #5145e5;
+  --primary-solid-hover: #6055ec;
+  --primary-bg: rgb(99 102 241 / 14%);
+  --primary-border: rgb(129 140 248 / 35%);
+  --accent: #fbbf24;
+
+  --success: #4ade80;
+  --success-bg: rgb(34 197 94 / 12%);
+  --warning: #fbbf24;
+  --warning-bg: rgb(245 158 11 / 12%);
+  --danger: #f87171;
+  --danger-bg: rgb(239 68 68 / 12%);
+  --info: #a78bfa;
+  --info-bg: rgb(139 92 246 / 14%);
+
+  --bg-page: #0b0d16;
+  --bg-card: #141726;
+  --bg-hover: #1d2135;
+  --bg-subtle: #181b2c;
+  --bg-inset: #10131f;
+  --border: #262b40;
+  --border-light: #1f2336;
+  --text-primary: #e8eaf2;
+  --text-secondary: #9aa3bd;
+  --text-disabled: #626b85;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 30%), 0 2px 8px rgb(0 0 0 / 25%);
+  --shadow-hover: 0 4px 16px rgb(0 0 0 / 45%);
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 55%);
+
+  --topbar-bg: rgb(11 13 22 / 78%);
+  --scrim: rgb(0 0 0 / 60%);
+  --palette-scrim: rgb(3 5 12 / 62%);
+  --dot: #191d31;
+
+  --sidebar-bg: #0d0f18;
+  --sidebar-fg: #9aa3bd;
+  --sidebar-fg-strong: #e8eaf2;
+  --sidebar-hover: rgb(255 255 255 / 6%);
+  --sidebar-active-bg: rgb(255 255 255 / 9%);
+  --sidebar-active-fg: #c7d2fe;
+  --sidebar-border: rgb(255 255 255 / 8%);
+
+  --hero-bg: linear-gradient(115deg, #14162f 0%, #1e1c47 46%, #2a1a4e 100%);
+  --hero-fg: #f2f3f9;
+  --hero-fg-dim: rgb(203 213 225 / 58%);
+  --hero-line: rgb(255 255 255 / 13%);
+  --hero-cell-bg: rgb(255 255 255 / 5%);
+  --hero-cell-border: rgb(255 255 255 / 9%);
+  /* On a near-black page the deck needs a lit edge to read as a surface. */
+  --hero-border: rgb(129 140 248 / 22%);
+  --hero-grid: rgb(255 255 255 / 4%);
+  --hero-hud: rgb(199 210 254 / 44%);
+
+  --el-color-primary: var(--primary);
+  --el-color-success: var(--success);
+  --el-color-warning: var(--warning);
+  --el-color-danger: var(--danger);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-border-color: var(--border);
+  --el-border-color-light: var(--border-light);
+  --el-bg-color: var(--bg-card);
+  --el-bg-color-page: var(--bg-page);
+  --el-fill-color-light: var(--bg-hover);
+  --el-bg-overlay: var(--bg-card);
+  --el-fill-color-blank: var(--bg-card);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: Inter, 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  /* Engineering paper: a faint dot grid gives the canvas depth and a
+     "control room" texture cards can sit on. */
+  background-color: var(--bg-page);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Smooth palette cross-fade when the theme flips (opt-in via useTheme). */
+html.theme-anim body,
+html.theme-anim .card,
+html.theme-anim .sidebar,
+html.theme-anim .topbar {
+  transition: background var(--t-base) var(--ease), color var(--t-base) var(--ease),
+    border-color var(--t-base) var(--ease);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+/* Numbers in tables and stats must line up column-wise. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Editorial devices — the shared visual language across every screen. */
+
+/* Micro-label: uppercase, tracked, small. For card titles, KPI labels. */
+.microlabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Figures in the display sense: mono numerals read as "instrument", not "web". */
+.figures {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Key caps — the visual grammar of a keyboard-driven product. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* While an overlay is open the page underneath must not scroll away. */
+body.no-scroll {
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--primary);
+  color: #fff;
+}
+
+html.dark ::selection {
+  color: #0b0d16;
+}
+
+/* Thin, themed scrollbars: the default macOS overlay bar disappears entirely on
+   dark surfaces, leaving no affordance that a panel can scroll. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background: var(--border);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-disabled);
+  background-clip: content-box;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.page {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--s-6);
+}
+
+/* Page header pattern: title block takes the space, actions push right.
+   The single source of truth — views must not re-declare `.head` styles. */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.head > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.head p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+/* Page titles carry a solid brand tick — one repeatable signature device. */
+.head h2::before,
+.toolbar .h2::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--primary);
+  margin-right: 10px;
+  vertical-align: 1px;
+}
+
+/* Card titles are labels, not headings: micro-caps everywhere, one size.
+   Layout (padding vs margin) stays local because cards differ in padding. */
+.card-head h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.card-sub {
+  font-size: 11px;
+  color: var(--text-disabled);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--t-base) var(--ease);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.row-end {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------- element overrides */
+
+.el-table {
+  --el-table-header-bg-color: var(--bg-subtle);
+  --el-table-row-hover-bg-color: var(--bg-hover);
+  --el-table-border-color: var(--border-light);
+  --el-table-bg-color: var(--bg-card);
+  --el-table-tr-bg-color: var(--bg-card);
+  font-size: 14px;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.el-table .cell {
+  line-height: 1.45;
+}
+
+.el-table__row {
+  height: 48px;
+}
+
+/* Hovering a row lights a 2px tick on its leading edge: the table tells you
+   which record the pointer is on without a background wash. */
+.el-table__body tr:hover > td.el-table__cell:first-child {
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+/* Right-aligned numeric columns */
+.el-table .is-right .cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+/* Primary buttons are solid brand color — quiet and intentional. Gradients
+   on buttons are the single strongest "generated UI" signal. */
+.el-button--primary:not(.is-disabled):not(.is-plain):not(.is-link):not(.is-text) {
+  background: var(--primary-solid);
+  border: none;
+}
+
+.el-button--primary:not(.is-disabled):not(.is-plain):not(.is-link):not(.is-text):hover {
+  background: var(--primary-solid-hover);
+  opacity: 1;
+}
+
+.el-drawer {
+  border-radius: var(--r-drawer) 0 0 var(--r-drawer);
+}
+
+/* Popovers inherit the card radius and overlay shadow so menus belong to the
+   same system as the surfaces they open over. */
+.el-dropdown__popper.el-popper,
+.el-select__popper.el-popper,
+.el-picker__popper.el-popper {
+  border-radius: var(--r-card);
+  border-color: var(--border);
+  box-shadow: var(--shadow-overlay);
+}
+
+.el-card {
+  --el-card-border-radius: var(--r-card);
+  --el-card-border-color: var(--border);
+}
+
+/* --------------------------------------------------------------- utility */
+
+.muted {
+  color: var(--text-secondary);
+}
+
+.dim {
+  color: var(--text-disabled);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Skeleton shimmer follows the theme. */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-inset) 25%, var(--bg-hover) 37%, var(--bg-inset) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------- mobile */
+
+@media (max-width: 767px) {
+  .page {
+    padding: var(--s-4);
+  }
+}
+
+/* ---------------------------------------------------------------- print */
+
+@media print {
+  .no-print,
+  .el-menu,
+  .el-pagination,
+  .el-button {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .card {
+    border: 0;
+    box-shadow: none;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+}

@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: orderhub-db
+    environment:
+      POSTGRES_USER: orderhub
+      POSTGRES_PASSWORD: orderhub
+      POSTGRES_DB: orderhub
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U orderhub -d orderhub']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    container_name: orderhub-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://orderhub:orderhub@db:5432/orderhub?schema=public
+      JWT_SECRET: local-dev-only-change-before-deploying-0123456789
+      JWT_EXPIRES_IN: 7d
+      COOKIE_SECURE: 'false'
+      CORS_ORIGIN: http://localhost:5173
+      LOG_LEVEL: info
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

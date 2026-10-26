@@ -1,0 +1,99 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: web (typecheck · build · budget)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # `build` runs vue-tsc first, so a type error fails the job before Vite
+      # spends 30 s producing a bundle that would be rejected anyway.
+      - name: Typecheck + build
+        run: pnpm run build
+
+      # Fails the job when the gzipped JS bundle exceeds the budget in
+      # scripts/check-bundle.mjs. Catches "someone imported the full ECharts
+      # barrel" on the PR that causes it, not on deploy day.
+      - name: Bundle budget
+        run: pnpm run size
+
+  backend:
+    name: api (typecheck · tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The generated client is gitignored; tsc cannot resolve @prisma/client
+      # without it, so this must precede the typecheck.
+      - name: Prisma generate
+        run: pnpm exec prisma generate
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # Pure unit tests (order state machine, CSV escaping) — no database and
+      # no network, so this stays fast and has no service containers.
+      - name: Unit tests
+        run: pnpm run test
+
+  docker:
+    name: image build
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Proves the deployable artifact actually builds. If this passes, the
+      # host will start it; if it fails, the host would fail the same way.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

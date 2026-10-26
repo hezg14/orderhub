@@ -1,0 +1,39 @@
+# Render Blueprint — one Docker web service that serves both the SPA and the API.
+#
+# Deploy: Render dashboard → New → Blueprint → pick this repo. Render reads this
+# file, builds ./Dockerfile and asks for the two secrets marked `sync: false`.
+#
+# The database is deliberately NOT declared here. Render's free Postgres expires
+# 30 days after creation, which is a bad fit for a portfolio link that has to
+# keep working; point DATABASE_URL at a Neon free project instead (it autosuspends
+# in ~5 min and resumes in well under a second).
+services:
+  - type: web
+    name: orderhub
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon / Supabase connection string. Must include `?sslmode=require`
+      # unless the provider terminates TLS on a trusted scheme.
+      - key: DATABASE_URL
+        sync: false
+      # 32+ chars. Render can generate one: the app refuses to boot without it.
+      - key: JWT_SECRET
+        generateValue: true
+      # The app is served over HTTPS, so the session cookie must be Secure.
+      - key: COOKIE_SECURE
+        value: 'true'
+      # Only needed if you later split SPA and API onto different hosts.
+      # Same-host requests are trusted automatically (see createApp's CORS block).
+      - key: CORS_ORIGIN
+        value: https://orderhub.onrender.com
+      # Demo convenience: every restart resets the seed snapshot so a reviewer
+      # never lands on an empty or mangled dataset. Turn OFF for real data.
+      - key: SEED_ON_BOOT
+        value: 'true'

@@ -1,0 +1,12 @@
+import type { Role } from '../lib/jwt';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { id: string; role: Role; name: string };
+      requestId: string;
+    }
+  }
+}
+
+export {};

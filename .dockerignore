@@ -1,0 +1,15 @@
+# Build context is the repository root: the image needs both frontend/ and
+# backend/. Keep node_modules and build output out of the context — copying
+# them in makes the build non-reproducible (host-specific binaries) and slow.
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+.shots
+**/.DS_Store
+.git
+**/*.tsbuildinfo
+frontend/vite.config.ts.timestamp-*.mjs
