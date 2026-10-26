@@ -72,14 +72,42 @@ Then open the site and log in with a demo account (see
 `frontend/src/config/demoAccounts.ts`). Checked 2026-10-26: healthz 200,
 login 200, order list returns seeded data, receivables report 200.
 
+## Keep-alive worker (no cold starts)
+
+The free plan sleeps the service after ~15 idle minutes and the next visit
+waits ~50 s — unacceptable for a shared demo link. Render's free allowance is
+750 instance-hours/month and one always-on service needs ~730, so a tiny
+scheduled ping keeps the instance warm **at zero extra cost**.
+
+`deploy/keepalive/` holds a Cloudflare Worker (free plan) that hits
+`/healthz` every 12 minutes via a Cron Trigger.
+
+Deploy with the CLI:
+
+```bash
+cd deploy/keepalive
+npx -y wrangler login     # browser: log in to Cloudflare and Allow
+npx wrangler deploy       # uploads the worker and registers the cron
+```
+
+Deploy without the CLI: Workers & Pages → Create Worker → paste
+`worker.js` → Deploy → Settings → Triggers → Cron Triggers → add
+`*/12 * * * *`.
+
+Verify: Render service logs should show a periodic `GET /healthz 200`
+every 12 minutes; after 20+ idle minutes the live URL should still open
+instantly. Free Workers quota (100k requests/day) dwarfs the ~120/day
+this uses.
+
 ## Day-to-day operations
 
 - **Auto deploy**: every push to `main` triggers a rebuild (Blueprint-managed).
 - **Manual deploy**: service page → **Manual Deploy → Deploy latest commit**.
 - **Cold starts**: the free plan spins down after ~15 min idle; the first
-  request afterwards takes up to ~50 s. Combined with `SEED_ON_BOOT=true`,
-  every cold start also restores a clean demo dataset — good for a portfolio
-  link, turn it OFF before loading real data.
+  request afterwards takes up to ~50 s. The keep-alive worker above removes
+  this entirely. Combined with `SEED_ON_BOOT=true`, every cold start also
+  restores a clean demo dataset — good for a portfolio link, turn it OFF
+  before loading real data.
 - **Rotate DB credentials**: Neon → project → role menu → Reset password,
   then update `DATABASE_URL` in Render → Environment and redeploy.
 - **Next product**: reuse the same Render workspace and Neon account — just
