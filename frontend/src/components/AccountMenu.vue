@@ -38,7 +38,8 @@ async function switchAccount(email: string) {
   if (switching.value) return;
   switching.value = true;
   try {
-    await auth.logout();
+    // Sequential on purpose: the login must not race the cookie clear.
+    await auth.logout({ waitForServer: true });
     await auth.login(email, DEMO_PASSWORD);
     ElMessage.success(t('nav.switched', { name: auth.displayName }));
     window.location.assign('/');

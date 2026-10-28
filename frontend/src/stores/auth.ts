@@ -41,16 +41,29 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function logout() {
-    try {
-      await authApi.logout();
-    } catch {
-      // Best-effort: the cookie also dies client-side and the server session
-      // expires on its own. A failed logout call must never trap the user on
-      // an authenticated page (e.g. a cold-starting Render free instance).
-    } finally {
-      user.value = null;
-      bootstrapped.value = true;
+  /**
+   * Instant sign-out: local identity clears synchronously and the caller can
+   * navigate right away; the server cookie-clear runs in the background.
+   * Leaving a page must never wait on a network round trip — on a sleeping
+   * free-instance deploy that round trip can take seconds, and "Sign out" is
+   * the one action that has to feel instant.
+   *
+   * `waitForServer` exists for flows that sign a *different* account right
+   * back in (account switching): that login must not race the cookie clear,
+   * or the new session can be clobbered by the old logout response.
+   */
+  async function logout(opts: { waitForServer?: boolean } = {}) {
+    user.value = null;
+    bootstrapped.value = true;
+    if (opts.waitForServer) {
+      try {
+        await authApi.logout();
+      } catch {
+        // Best-effort: the cookie also dies client-side and the server
+        // session expires on its own.
+      }
+    } else {
+      void authApi.logout().catch(() => {});
     }
   }
 
